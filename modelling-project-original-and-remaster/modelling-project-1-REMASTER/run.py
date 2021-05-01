@@ -6,6 +6,7 @@ from bauhaus import Encoding, proposition, constraint
 import nnf
 
 #SET UP BASIC PROPOSITIONS
+#TESTING
 
 global e
 e = Encoding()
