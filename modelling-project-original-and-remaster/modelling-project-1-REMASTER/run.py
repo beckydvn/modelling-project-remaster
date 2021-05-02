@@ -67,9 +67,6 @@ plane = {}
 #(in short it contains all the relevant info for the stops the user will take).
 stop_info = []
 
-
-
-
 def read_files(country, filename):
   """read in a database of cities from a specific country and write it to a list 
   of dictionaries"""
@@ -297,84 +294,88 @@ def example_theory():
 
     set_up_props()
 
+    for entry in stop_info:
+      location = entry["location"]
+      #exactly one weather condition must be true for each location
+      constraint.add_exactly_one(e, sunny[location].name, rainy[location].name, snowstorm[location].name)
+
+      #at most one of driving, transit, and plane propositions can be true for each location
+      constraint.add_exactly_one(e, drive[location].name, transit[location].name, plane[location].name)
+
+    #get NNF object
+    e = e.compile()
+
     #loop through each stop and set appropriate constraints
     #note: we don't necessarily set each proposition to true unless we know 100%
     #it is true because it could still be set false by other constraints.
     #(just because something is false in one scenario, doesn't mean it's true in the 
     # opposite).
     for entry in stop_info:
+      #get current location
       location = entry["location"]
-
-      #exactly one weather condition must be true for each location
-      constraint.add_exactly_one(e, sunny[location], rainy[location], snowstorm[location])
-
-      #at most one of driving, transit, and plane propositions can be true for each location
-      constraint.add_exactly_one(e, drive[location], transit[location], plane[location])
-      
-      e = e.compile()
 
       #if a given mode of transportation is not feasible for that trip, set the
       #constraint that it can't be true
       if "drive" not in entry["travel"].keys():
-        e = e & (~nnf.Var(drive[location]))
+        e = e & (~nnf.Var(drive[location].name))
 
       #if it would take more than 3 hours to drive to/from this trip/the trip is international, tolls 
       #will be there
       else:
         if(entry["travel"]["drive"] > 3):
-          e = e & (nnf.Var(toll[location]))
+          e = e & (nnf.Var(toll[location].name))
           #cannot cross a toll if you have no toll money
-          e = e & ((nnf.Var(toll[location]) & ~nnf.Var(toll_money) & nnf.Var(drive[location])).negate())
+          e = e & ((nnf.Var(toll[location].name) & ~nnf.Var(toll_money.name) & nnf.Var(drive[location].name)).negate())
       #can only use the valid modes of travel
       if "transit" not in entry["travel"].keys():
-        e = e & (~nnf.Var(transit[location]))
+        e = e & (~nnf.Var(transit[location].name))
       if "plane" not in entry["travel"].keys():
-        e = e & (~nnf.Var(plane[location]))
-      e = e & (~nnf.Var(international) | nnf.Var(toll[location]))
+        e = e & (~nnf.Var(plane[location].name))
+      e = e & (~nnf.Var(international.name) | nnf.Var(toll[location].name))
 
       #good weather and holiday implies tickets will be sold out and you have to drive
-      e = e & ((nnf.Var(sunny[location]) & nnf.Var(holiday)).negate() | (nnf.Var(transit[location]) | nnf.Var(plane[location])).negate())
+      e = e & ((nnf.Var(sunny[location].name) & nnf.Var(holiday.name)).negate() | (nnf.Var(transit[location].name) | nnf.Var(plane[location].name)).negate())
 
       #rainy or snowstorm increases the likelihood of accidents
-      e = e & ((nnf.Var(rainy[location]) | nnf.Var(snowstorm[location])).negate() | nnf.Var(accident[location]))
+      e = e & ((nnf.Var(rainy[location].name) | nnf.Var(snowstorm[location].name)).negate() | nnf.Var(accident[location].name))
       #snowstorm implies that transit and planes will be shut down
-      e = e & (~nnf.Var(snowstorm[location]) | (nnf.Var(transit[location]) | nnf.Var(plane[location])).negate())
+      e = e & (~nnf.Var(snowstorm[location].name) | (nnf.Var(transit[location].name) | nnf.Var(plane[location].name)).negate())
       #driving constraints (come into play if they are driving):
       #bad weather and roadwork implies unfeasible trip
-      e = e & ((((nnf.Var(rainy[location]) | nnf.Var(snowstorm[location])) & nnf.Var(roadwork[location])) & nnf.Var(drive[location])).negate())
+      e = e & ((((nnf.Var(rainy[location].name) | nnf.Var(snowstorm[location].name)) & nnf.Var(roadwork[location].name)) & nnf.Var(drive[location].name)).negate())
       #bad weather and holiday implies unfeasible trip
-      e = e & (((nnf.Var(rainy[location]) | nnf.Var(snowstorm[location])) & nnf.Var(holiday) & nnf.Var(drive[location])).negate())
+      e = e & (((nnf.Var(rainy[location].name) | nnf.Var(snowstorm[location].name)) & nnf.Var(holiday.name) & nnf.Var(drive[location].name)).negate())
       #roadwork and holiday implies unfeasible trip
-      e = e & (((nnf.Var(roadwork[location]) & nnf.Var(holiday)) & nnf.Var(drive[location])).negate())
+      e = e & (((nnf.Var(roadwork[location].name) & nnf.Var(holiday.name)) & nnf.Var(drive[location].name)).negate())
       #roadwork and accident implies unfeasible trip
-      e = e & (((nnf.Var(roadwork[location]) & nnf.Var(accident[location])) & nnf.Var(drive[location])).negate())
+      e = e & (((nnf.Var(roadwork[location].name) & nnf.Var(accident[location].name)) & nnf.Var(drive[location].name)).negate())
       #holiday and accident implies unfeasible trip
-      e = e & (((nnf.Var(holiday) & nnf.Var(accident[location])) & nnf.Var(drive[location])).negate())
+      e = e & (((nnf.Var(holiday.name) & nnf.Var(accident[location].name)) & nnf.Var(drive[location].name)).negate())
 
       #you cannot drive anywhere if you have more than 5 people
-      e = e & (~nnf.Var(more_than_five) | ~nnf.Var(drive[location]))
+      e = e & (~nnf.Var(more_than_five.name) | ~nnf.Var(drive[location].name))
 
       #you cannot take a plane if you don't have money for a ticket
-      e = e & (nnf.Var(afford_plane) | ~nnf.Var(plane[location]))
+      e = e & (nnf.Var(afford_plane.name) | ~nnf.Var(plane[location].name))
       
       #if you are taking an urgent trip, only the fastest trip (determined earlier) is possible
       if "drive" in entry["urgent"].keys():
-        e = e & (~nnf.Var(urgent_trip) | (~nnf.Var(transit[location]) & ~nnf.Var(plane[location])))
+        e = e & (~nnf.Var(urgent_trip.name) | (~nnf.Var(transit[location].name) & ~nnf.Var(plane[location].name)))
       elif "transit" in entry["urgent"].keys():
-        e = e & (~nnf.Var(urgent_trip) | (~nnf.Var(drive[location]) & ~nnf.Var(plane[location])))
+        e = e & (~nnf.Var(urgent_trip.name) | (~nnf.Var(drive[location].name) & ~nnf.Var(plane[location].name)))
       elif "plane" in entry["urgent"].keys():
-        e = e & (~nnf.Var(urgent_trip) | (~nnf.Var(transit[location]) & ~nnf.Var(drive[location])))
+        e = e & (~nnf.Var(urgent_trip.name) | (~nnf.Var(transit[location].name) & ~nnf.Var(drive[location].name)))
       
       #if you have the virus, you can't take a plane
-      e = e & (~nnf.Var(plane[location]) | (~nnf.Var(virus) & nnf.Var(documents)))
+      e = e & (~nnf.Var(plane[location].name) | (~nnf.Var(virus.name) & nnf.Var(documents.name)))
       #if you don't have documents, you can't take a plane
-      e = e & (nnf.Var(documents) | ~nnf.Var(plane[location]))
+      e = e & (nnf.Var(documents.name) | ~nnf.Var(plane[location].name))
 
     #only relevant if travel is international
     #if you have tested positive for the virus/been in contact, you can't cross the border
-    e = e & (~nnf.Var(international) | (~nnf.Var(virus) & nnf.Var(documents)))
+    e = e & (~nnf.Var(international.name) | (~nnf.Var(virus.name) & nnf.Var(documents.name)))
     #no documents means you can't cross the border
-    e = e & ((nnf.Var(international) & nnf.Var(documents)) | ~nnf.Var(international))
+    e = e & ((nnf.Var(international.name) & nnf.Var(documents.name)) | ~nnf.Var(international.name))
 
     return e    
 
@@ -386,12 +387,13 @@ def test_weather(stop_info):
     for entry in stop_info:
       location = entry["location"]
       #ensure that it is not a snowstorm so transit could always happen
-      extra_con.append(~snowstorm[location])
+      extra_con.append(~nnf.Var(snowstorm[location].name))
       #ensure that a holiday and taking the train means that it is NOT sunny
-      extra_con.append(transit[location] & holiday)
+      extra_con.append(nnf.Var(transit[location].name))
+      extra_con.append(nnf.Var(holiday.name))
       #the above two implies it will be rainy, which will imply accidents
       #should fail the model due to a contradiction
-      extra_con.append(~accident[location])
+      extra_con.append(~nnf.Var(accident[location].name))
     return extra_con
 
 def test_affordability():
@@ -401,13 +403,13 @@ def test_affordability():
     for entry in stop_info:
       location = entry["location"]
       #force international to be true so there will be toll money
-      extra_con.append(international)
+      extra_con.append(nnf.Var(international.name))
       #force plane to be false
-      extra_con.append(~afford_plane)
+      extra_con.append(~nnf.Var(afford_plane.name))
       #forced the driver to have no toll money
-      extra_con.append(~toll_money)
+      extra_con.append(~nnf.Var(toll_money.name))
       #(either transit will always be true or the model will fail). The below will fail the model.
-      extra_con.append(~transit[location])
+      extra_con.append(~nnf.Var(transit[location].name))
     return extra_con
 
 def test_travel():
@@ -417,14 +419,14 @@ def test_travel():
     for entry in stop_info:
       location = entry["location"]
       #force more than five people to take the trip (negates driving)
-      extra_con.append(more_than_five)
+      extra_con.append(nnf.Var(more_than_five.name))
 
       #force one of them to have COVID (cannot take a plane/travel internationally)
       #if the user enters an international trip there should be 0 solutions.
       #in other words, their only option in this scenario is to take transit domestically.
       #negating transit gives us 0 solutions then, of course.
-      extra_con.append(virus)
-      extra_con.append(~transit[location])
+      extra_con.append(nnf.Var(virus.name))
+      extra_con.append(~nnf.Var(transit[location].name))
     return extra_con  
 
 def solve(border, is_urgent, test, extra_con=[]):
@@ -433,25 +435,26 @@ def solve(border, is_urgent, test, extra_con=[]):
     T = example_theory()
     #account for international status/urgency
     if(border):
-      T = T & (nnf.Var(international))
+      T = T & (nnf.Var(international.name))
       print("This trip is international...")
     else:
-      T = T & (~nnf.Var(international))
+      T = T & (~nnf.Var(international.name))
       print("This trip is not international...")
 
     #add more constraints if the trip is urgent
     if(is_urgent):
-      T = T & (nnf.Var(urgent_trip))
+      T = T & (nnf.Var(urgent_trip.name))
     else:
-      T = T & (~nnf.Var(urgent_trip))
+      T = T & (~nnf.Var(urgent_trip.name))
 
     if test:
       #add any extra constraints
       if extra_con != []:
         for constraint in extra_con:
-          T = T & (~nnf.Var(constraint))
+          T = T & (~constraint)
 
     print("   Solution: %s" % T.solve())
+    print("   Number of Solutions: %s" % T.model_count())
 
 def main():
     """Runs the program."""
@@ -548,7 +551,7 @@ def main():
     user_input = -2 #initizalize
     #get the user input for the stops they would like and store it in chosen_stops
     print("Please enter which stops you would like to take along the way." + 
-    "If you are done entering stops, please enter '-1'. If you don't want to take any stops," +
+    " If you are done entering stops, please enter '-1'. If you don't want to take any stops," +
     " enter -1 right away.")
     while(user_input != -1):
       user_input = int(input("Enter your next stop: "))
@@ -625,5 +628,3 @@ def main():
     solve(border, is_urgent, test, extra_con)
 
 main()
-
-#if __name__ == "__main__":
