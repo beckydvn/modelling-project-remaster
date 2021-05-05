@@ -131,6 +131,21 @@ def is_test():
       test = False
     return test
 
+def is_debug():
+    """ask if the current run is a debug run"""
+    choice = input("Do you want to run this in debugging mode with the default start and end point Toronto and Seattle and no urgency assumed? (Y \ N)")
+    choice = choice.upper()
+    while(choice != "Y" and choice != "N"):
+      choice = input("Please enter a valid option.")
+      choice = choice.upper()
+    if(choice.upper() == "Y"):
+      print("Running in debug mode...\n")
+      debug = True
+    else:
+      print("Running normally...\n")
+      debug = False
+    return debug
+
 def decide_test():
     """Get any extra constraints from the user if they are running a test."""
     print("What would you like to test? Type 'w' to test weather.\nType 'a' to test affordability.\nType 't' to test travel.")
@@ -318,7 +333,7 @@ def example_theory():
         if(entry["travel"]["drive"] > 3):
           e.add_constraint(toll[location])
           #cannot cross a toll if you have no toll money
-          e.add_constraint(((toll[location] & ~toll_money) & drive[location]).negate())
+          e.add_constraint(~((toll[location] & ~toll_money) & drive[location]))
       if "transit" not in entry["travel"].keys():
         e.add_constraint(~transit[location])
       if "plane" not in entry["travel"].keys():
@@ -332,31 +347,25 @@ def example_theory():
       e.add_constraint(~rainy[location] | (~snowstorm[location] & ~sunny[location]))
       e.add_constraint(~snowstorm[location] | (~sunny[location] & ~rainy[location]))
 
-
-      #TESTING (below 2 lines)
-      #constraint added for testing; works
-      e.add_constraint(~(international & afford_plane) | ~(virus | documents))
-      print("_var" in dir(sunny[location]))
-      #below line crashes. negate() was used before instead of ~
       #good weather and holiday implies tickets will be sold out and you have to drive
       e.add_constraint(~(sunny[location] & holiday) | ~(transit[location] | plane[location]))
       
 
       #rainy or snowstorm increases the likelihood of accidents
-      e.add_constraint((rainy[location] | snowstorm[location]).negate() | accident[location])
+      e.add_constraint(~(rainy[location] | snowstorm[location]) | accident[location])
       #snowstorm implies that transit and planes will be shut down
-      e.add_constraint(~snowstorm[location] | (transit[location] | plane[location]).negate())
+      e.add_constraint(~snowstorm[location] | ~(transit[location] | plane[location]))
       #driving constraints (come into play if they are driving):
       #bad weather and roadwork implies unfeasible trip
-      e.add_constraint((((rainy[location] | snowstorm[location]) & roadwork[location]) & drive[location]).negate())
+      e.add_constraint(~(((rainy[location] | snowstorm[location]) & roadwork[location]) & drive[location]))
       #bad weather and holiday implies unfeasible trip
-      e.add_constraint((((rainy[location] | snowstorm[location]) & holiday) & drive[location]).negate())
+      e.add_constraint(~(((rainy[location] | snowstorm[location]) & holiday) & drive[location]))
       #roadwork and holiday implies unfeasible trip
-      e.add_constraint(((roadwork[location] & holiday) & drive[location]).negate())
+      e.add_constraint(~((roadwork[location] & holiday) & drive[location]))
       #roadwork and accident implies unfeasible trip
-      e.add_constraint(((roadwork[location] & accident[location]) & drive[location]).negate())
+      e.add_constraint(~((roadwork[location] & accident[location]) & drive[location]))
       #holiday and accident implies unfeasible trip
-      e.add_constraint(((holiday & accident[location]) & drive[location]).negate())
+      e.add_constraint(~((holiday & accident[location]) & drive[location]))
       #you must have at least one form of travel
       e.add_constraint(plane[location] | transit[location] | drive[location])
       #only one form of travel can be true at once
@@ -388,10 +397,6 @@ def example_theory():
     e.add_constraint(~international | (~virus & documents))
     #no documents means you can't cross the border
     e.add_constraint((international & documents) | ~international)
-
-
-    #get NNF object
-    e = e.compile()
 
     return e    
 
@@ -448,6 +453,7 @@ def solve(border, is_urgent, test, extra_con=[]):
     """Sets up and uses the SAT solver."""
     #set up the solver
     T = example_theory()
+
     #account for international status/urgency
     if(border):
       T.add_constraint(international)
@@ -468,6 +474,9 @@ def solve(border, is_urgent, test, extra_con=[]):
         for constraint in extra_con:
           T.add_constraint(constraint)
 
+    #get NNF object
+    T = T.compile()
+
     print("\nSatisfiable: %s" % T.is_satisfiable())
     print("# Solutions: %d" % T.count_solutions())
     print("   Solution: %s" % T.solve())
@@ -475,112 +484,138 @@ def solve(border, is_urgent, test, extra_con=[]):
 def main():
     """Runs the program."""
 
-    #ask the user if a test is being run
-    test = is_test()
-    #if it is a test, get any extra constraints from the user
-    if test:
-      type_of_test = decide_test()
-      
-    #will store extra constraints if a test is being run
-    extra_con = []
+    #ask the user if they are running in debug mode
+    debug = is_debug()
 
-    #read in the databases (each database contains the city name and its 
-    #longitude/latitude coordinate).
-    canada = read_files("canada", "Canada Cities.csv")
-    america = read_files("america", "US Cities.csv")
+    #normal mode - get locations from user
+    if not debug:
+      #ask the user if a test is being run
+      test = is_test()
+      #if it is a test, get any extra constraints from the user
+      if test:
+        type_of_test = decide_test()
 
-    # create a list for canadian and american cities
-    canada_cities = []
-    america_cities = []
-    for entry in canada:
-      canada_cities.append(entry["city"].lower())
-    for entry in america:
-      america_cities.append(entry["city"].lower())    
+      #will store extra constraints if a test is being run
+      extra_con = []
 
-    #get the raw location from the user and clarify any duplicates to get the
-    #starting and ending city (the countries will of course remain the same)
-    raw_location = raw_location_input(canada_cities,america_cities)
-    start_city, end_city = clarify_duplicates(canada, america, raw_location)
-    start_country = raw_location["starting country"]
-    end_country = raw_location["ending country"]
+      #read in the databases (each database contains the city name and its 
+      #longitude/latitude coordinate).
+      canada = read_files("canada", "Canada Cities.csv")
+      america = read_files("america", "US Cities.csv")
 
-    is_urgent = get_urgency()
+      # create a list for canadian and american cities
+      canada_cities = []
+      america_cities = []
+      for entry in canada:
+        canada_cities.append(entry["city"].lower())
+      for entry in america:
+        america_cities.append(entry["city"].lower())    
 
-    #calculate the total distance between the starting and ending city
-    start_coord = (start_city["latitude"], start_city["longitude"])
-    end_coord = (end_city["latitude"], end_city["longitude"])
-    total_dist = calc_distance(start_coord, end_coord)
+      #get the raw location from the user and clarify any duplicates to get the
+      #starting and ending city (the countries will of course remain the same)
+      raw_location = raw_location_input(canada_cities,america_cities)
+      start_city, end_city = clarify_duplicates(canada, america, raw_location)
+      start_country = raw_location["starting country"]
+      end_country = raw_location["ending country"]
 
-    print(str(start_coord) + " " + str(end_coord))
+      is_urgent = get_urgency()
 
-    #tell the user the total number of km
-    print("A trip from " + start_city["city"] + ", " + start_city["province/state"] + " to " + end_city["city"]
-     + ", " + end_city["province/state"] + " is " + str(total_dist)+ " km long.")
+      #calculate the total distance between the starting and ending city
+      start_coord = (start_city["latitude"], start_city["longitude"])
+      end_coord = (end_city["latitude"], end_city["longitude"])
+      total_dist = calc_distance(start_coord, end_coord)
 
-    #calculate 1/tenth of the distance from the start to the end
-    #the user will be given 10 choices of evenly spaced cities to stop at along the way 
-    #they can stop at 0, 1, or multiple; their choice
-    next_dist = total_dist/10
-  
-    geodesic = pyproj.Geod(ellps='WGS84')
-    #calculates the initial bearing (fwd_azimuth) and the final bearing 
-    fwd_azimuth,back_azimuth,distance = geodesic.inv(start_city["longitude"], start_city["latitude"], end_city["longitude"], end_city["latitude"])
-    final_bearing = back_azimuth - 180
+      print(str(start_coord) + " " + str(end_coord))
 
-    #Define the starting and ending points.
-    temp_start = geopy.Point(start_city["latitude"], start_city["longitude"])
-    end = geopy.Point(end_city["latitude"], end_city["longitude"])
-    start = temp_start
+      #tell the user the total number of km
+      print("A trip from " + start_city["city"] + ", " + start_city["province/state"] + " to " + end_city["city"]
+      + ", " + end_city["province/state"] + " is " + str(total_dist)+ " km long.")
 
-    #Define a general distance object, initialized with a distance of the stop distance (in km).
-    d = geopy.distance.distance(kilometers=next_dist)
-
-    #lists that will hold all the stops and the stops that the user chooses, respectively
-    all_stops = []
-    chosen_stops = []
-
-    #define the geolocator
-    geolocator = Nominatim(user_agent="Bing")
-
-    #loop 10 times (for 10 stops)
-    for i in range(10):
-      # Use the destination method with our starting point and initial bearing
-      # in order to go from our starting point to the next city in the line of stops.
-      #finds the next point from the starting point given the bearing
-      #if we are closer to the start, use our initial bearing; otherwise, use the final bearing
-      if(i < 5):
-        final = d.destination(point=temp_start, bearing=fwd_azimuth)
-      else:
-        final = d.destination(point=temp_start, bearing=final_bearing)
-       
-      #finds the location 
-      location = geolocator.reverse(str(final))
-      print(str(i) + ": " + str(location))
-      #add it to the list of all stops
-      all_stops.append({"location":str(location),"coord":final})
-      #reset the next starting point
-      temp_start = final
-
-    #add the starting location to the chosen stops
-    chosen_stops.append({"location": start_city["city"], "coord": start})
-
-    user_input = -2 #initizalize
-    #get the user input for the stops they would like and store it in chosen_stops
-    print("Please enter which stops you would like to take along the way." + 
-    "If you are done entering stops, please enter '-1'. If you don't want to take any stops," +
-    " enter -1 right away.")
-    while(user_input != -1):
-      user_input = int(input("Enter your next stop: "))
-      if (user_input < -1 or user_input > 9):
-          print("Wrong input! Please try again!")
-      else:    
-        if (user_input != -1):
-          chosen_stops.append(all_stops[user_input])
-
-    #add the ending location to the chosen stops
-    #chosen_stops is now a list of all stops including the start and end
-    chosen_stops.append({"location": end_city["city"], "coord": end})
+      #calculate 1/tenth of the distance from the start to the end
+      #the user will be given 10 choices of evenly spaced cities to stop at along the way 
+      #they can stop at 0, 1, or multiple; their choice
+      next_dist = total_dist/10
     
+      geodesic = pyproj.Geod(ellps='WGS84')
+      #calculates the initial bearing (fwd_azimuth) and the final bearing 
+      fwd_azimuth,back_azimuth,distance = geodesic.inv(start_city["longitude"], start_city["latitude"], end_city["longitude"], end_city["latitude"])
+      final_bearing = back_azimuth - 180
+
+      #Define the starting and ending points.
+      temp_start = geopy.Point(start_city["latitude"], start_city["longitude"])
+      end = geopy.Point(end_city["latitude"], end_city["longitude"])
+      start = temp_start
+
+      #Define a general distance object, initialized with a distance of the stop distance (in km).
+      d = geopy.distance.distance(kilometers=next_dist)
+
+      #lists that will hold all the stops and the stops that the user chooses, respectively
+      all_stops = []
+      chosen_stops = []
+
+      #define the geolocator
+      geolocator = Nominatim(user_agent="Bing")
+
+      #loop 10 times (for 10 stops)
+      for i in range(10):
+        # Use the destination method with our starting point and initial bearing
+        # in order to go from our starting point to the next city in the line of stops.
+        #finds the next point from the starting point given the bearing
+        #if we are closer to the start, use our initial bearing; otherwise, use the final bearing
+        if(i < 5):
+          final = d.destination(point=temp_start, bearing=fwd_azimuth)
+        else:
+          final = d.destination(point=temp_start, bearing=final_bearing)
+        
+        #finds the location 
+        location = geolocator.reverse(str(final))
+        print(str(i) + ": " + str(location))
+        #add it to the list of all stops
+        all_stops.append({"location":str(location),"coord":final})
+        #reset the next starting point
+        temp_start = final
+
+      #add the starting location to the chosen stops
+      chosen_stops.append({"location": start_city["city"], "coord": start})
+
+      user_input = -2 #initizalize
+      #get the user input for the stops they would like and store it in chosen_stops
+      print("Please enter which stops you would like to take along the way." + 
+      "If you are done entering stops, please enter '-1'. If you don't want to take any stops," +
+      " enter -1 right away.")
+      while(user_input != -1):
+        user_input = int(input("Enter your next stop: "))
+        if (user_input < -1 or user_input > 9):
+            print("Wrong input! Please try again!")
+        else:    
+          if (user_input != -1):
+            chosen_stops.append(all_stops[user_input])
+
+
+      #add the ending location to the chosen stops
+      #chosen_stops is now a list of all stops including the start and end
+      chosen_stops.append({"location": end_city["city"], "coord": end})
+
+      #add constraints for the appropriate test, if it is a test
+      if test:
+        if type_of_test == "w":
+          extra_con = test_weather(stop_info)
+        elif type_of_test == "a":
+          extra_con = test_affordability()
+        elif type_of_test == "t":
+          extra_con = test_travel()
+    else:
+      #debugging mode - default start and stop
+      chosen_stops = []
+      chosen_stops.append({"location": "Toronto, Canada", "coord": ('43.7417', '-79.3733')})
+      chosen_stops.append({"location": "Seattle, United States", "coord": ('47.6211', '-122.3244')})
+      start_country = "canada"
+      end_country = "united states"
+      is_urgent = False
+      test = False
+      extra_con = []
+
+
     for i in range(len(chosen_stops) - 1):
       #calculate the distance between each stop
       distance = calc_distance(chosen_stops[i]["coord"], chosen_stops[i + 1]["coord"])
@@ -630,15 +665,6 @@ def main():
 
     #determine if the travel is international or not and set the appropriate constraint
     border = get_international(start_country, end_country)
-
-    #add constraints for the appropriate test, if it is a test
-    if test:
-      if type_of_test == "w":
-         extra_con = test_weather(stop_info)
-      elif type_of_test == "a":
-        extra_con = test_affordability()
-      elif type_of_test == "t":
-        extra_con = test_travel()
 
     #solve!
     solve(border, is_urgent, test, extra_con)
