@@ -1,0 +1,21 @@
+﻿CONJECTUREPANEL Conjectures
+CURRENTPROOF "(R∧A)→¬C ⊢ (B→(P∧¬T))∧(¬B→(¬P∧T))"
+INFER (R∧A)→¬C 
+     ⊢ (B→(P∧¬T))∧(¬B→(¬P∧T))
+IS
+NEXTGOAL
+END
+CONJECTUREPANEL Conjectures
+CURRENTPROOF "B→(D∧¬CV) ⊢ (S1∨R1)→(P∧¬S)"
+INFER B→(D∧¬CV)
+     ⊢ (S1∨R1)→(P∧¬S)
+IS
+NEXTGOAL
+END
+CONJECTUREPANEL Conjectures
+CURRENTPROOF "S→¬(P∨T) ⊢ ¬B∧C∧A"
+INFER S→¬(P∨T)
+     ⊢ ¬B∧C∧A 
+IS
+NEXTGOAL
+END
