@@ -332,10 +332,15 @@ def example_theory():
       e.add_constraint(~rainy[location] | (~snowstorm[location] & ~sunny[location]))
       e.add_constraint(~snowstorm[location] | (~sunny[location] & ~rainy[location]))
 
+
       #TESTING (below 2 lines)
+      #constraint added for testing; works
       e.add_constraint(~(international & afford_plane) | ~(virus | documents))
+      print("_var" in dir(sunny[location]))
+      #below line crashes. negate() was used before instead of ~
       #good weather and holiday implies tickets will be sold out and you have to drive
       e.add_constraint(~(sunny[location] & holiday) | ~(transit[location] | plane[location]))
+      
 
       #rainy or snowstorm increases the likelihood of accidents
       e.add_constraint((rainy[location] | snowstorm[location]).negate() | accident[location])
