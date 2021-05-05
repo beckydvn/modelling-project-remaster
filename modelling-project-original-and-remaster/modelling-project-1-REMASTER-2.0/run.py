@@ -1,19 +1,53 @@
-from nnf import Var
-from lib204 import Encoding
 import geopy
 import geopy.distance
 from geopy.geocoders import Nominatim
 import pyproj
+import bauhaus
+from bauhaus import Encoding, proposition, constraint
+import nnf
+
+#SET UP BASIC PROPOSITIONS
+
+global e
+e = Encoding()
+
+#class for universal propositions
+@proposition(e)
+class universal_prop:
+  #instantiate with name to be given to the proposition
+  def __init__(self, name):
+    self.name = name
+
+#class for weather propositions
+@proposition(e)
+class weather_prop:
+  #instantiate with name to be given to the proposition
+  def __init__(self, name):
+    self.name = name
+
+#class for travel propositions
+@proposition(e)
+class transit_prop:
+  #instantiate with name to be given to the proposition
+  def __init__(self, name):
+    self.name = name
+
+#class for delay propositions
+@proposition(e)
+class delay_prop:
+  #instantiate with name to be given to the proposition
+  def __init__(self, name):
+    self.name = name
 
 #factors that might affect the trips
-virus = Var('virus') # 🦠 
-documents = Var('documents') # document
-international = Var('international') # crossing the border
-toll_money = Var('money for tolls') # toll money
-afford_plane = Var('can afford plane ticket(s)') # plane ticket is affordable
-holiday = Var('holiday') # holiday 
-more_than_five = Var('more than five people') # travelling with more than 5 people
-urgent_trip = Var('trip is urgent') # trip is urgent
+virus = universal_prop('virus') # 🦠 
+documents = universal_prop('documents') # document
+international = universal_prop('international') # crossing the border
+toll_money = universal_prop('money for tolls') # toll money
+afford_plane = universal_prop('can afford plane ticket(s)') # plane ticket is affordable
+holiday = universal_prop('holiday') # holiday 
+more_than_five = universal_prop('more than five people') # travelling with more than 5 people
+urgent_trip = universal_prop('trip is urgent') # trip is urgent
 
 #for each factor variables, we're storing them in dictionaries because when asking the users for their inputs,
 #there might be multiple stops along the trip, therefore we would need propositions for each stop along the way.
@@ -31,24 +65,6 @@ plane = {}
 #and ending location for each stop in user's chosen stops, and the distance between the two.
 #(in short it contains all the relevant info for the stops the user will take).
 stop_info = []
-
-def set_up_props():
-    """Initializes the propositions to be used by the model"""
-    #loop through all stops
-    for i in range(len(stop_info)):
-      #set up propositions for travel
-      location = stop_info[i]["location"]
-      drive[location] = Var('drive from ' + location)
-      transit[location] = Var('take transit from ' + location)
-      plane[location] = Var('take a plane from ' + location)
-      #set up other delay propositions
-      roadwork[location]= Var('roadwork happening on the path from ' + location)
-      accident[location] = Var('accident on the path from ' + location)
-      toll[location] = Var('tolls on the path from ' + location)
-      #set up weather propositions
-      sunny[location]= Var('sunny from ' + location)
-      rainy[location] = Var('rainy from ' + location)
-      snowstorm[location] = Var('snowstorm from ' + location)
 
 def read_files(country, filename):
   """read in a database of cities from a specific country and write it to a list 
@@ -254,10 +270,36 @@ def clarify_duplicates(canada, america, raw_location):
 
     return start_city, end_city  
 
+def set_up_props():
+    """Initializes the propositions to be used by the model"""
+    #loop through all stops
+    for i in range(len(stop_info)):
+      #set up propositions for travel
+      location = stop_info[i]["location"]
+      drive[location] = transit_prop('drive from ' + location)
+      transit[location] = transit_prop('take transit from ' + location)
+      plane[location] = transit_prop('take a plane from ' + location)
+      #set up other delay propositions
+      roadwork[location]= delay_prop('roadwork happening on the path from ' + location)
+      accident[location] = delay_prop('accident on the path from ' + location)
+      toll[location] = delay_prop('tolls on the path from ' + location)
+      #set up weather propositions
+      sunny[location]= weather_prop('sunny from ' + location)
+      rainy[location] = weather_prop('rainy from ' + location)
+      snowstorm[location] = weather_prop('snowstorm from ' + location)
+
 def example_theory():
-    E = Encoding()
+    global e 
 
     set_up_props()
+
+    for entry in stop_info:
+      location = entry["location"]
+      #exactly one weather condition must be true for each location
+      constraint.add_exactly_one(e, sunny[location].name, rainy[location].name, snowstorm[location].name)
+
+      #at most one of driving, transit, and plane propositions can be true for each location
+      constraint.add_exactly_one(e, drive[location].name, transit[location].name, plane[location].name)
 
     #loop through each stop and set appropriate constraints
     #note: we don't necessarily set it that proposition to true unless we know 100%
@@ -269,78 +311,84 @@ def example_theory():
       #if a given mode of transportation is not feasible for that trip, set the
       #constraint that it can't be true
       if "drive" not in entry["travel"].keys():
-        E.add_constraint(~drive[location])
+        e.add_constraint(~drive[location])
       #if it would take more than 3 hours to drive to/from this trip/the trip is international, tolls 
       #will be there
       else:
         if(entry["travel"]["drive"] > 3):
-          E.add_constraint(toll[location])
+          e.add_constraint(toll[location])
           #cannot cross a toll if you have no toll money
-          E.add_constraint(((toll[location] & ~toll_money) & drive[location]).negate())
+          e.add_constraint(((toll[location] & ~toll_money) & drive[location]).negate())
       if "transit" not in entry["travel"].keys():
-        E.add_constraint(~transit[location])
+        e.add_constraint(~transit[location])
       if "plane" not in entry["travel"].keys():
-        E.add_constraint(~plane[location])
-      E.add_constraint(~international | toll[location])
+        e.add_constraint(~plane[location])
+      e.add_constraint(~international | toll[location])
       #at least one weather mode has to be true
-      E.add_constraint(sunny[location] | rainy[location] | snowstorm[location])
+      e.add_constraint(sunny[location] | rainy[location] | snowstorm[location])
 
       #only one form of weather can be true at once
-      E.add_constraint(~sunny[location] | (~snowstorm[location] & ~rainy[location]))
-      E.add_constraint(~rainy[location] | (~snowstorm[location] & ~sunny[location]))
-      E.add_constraint(~snowstorm[location] | (~sunny[location] & ~rainy[location]))
+      e.add_constraint(~sunny[location] | (~snowstorm[location] & ~rainy[location]))
+      e.add_constraint(~rainy[location] | (~snowstorm[location] & ~sunny[location]))
+      e.add_constraint(~snowstorm[location] | (~sunny[location] & ~rainy[location]))
 
+      #TESTING (below 2 lines)
+      e.add_constraint(~(international & afford_plane) | ~(virus | documents))
       #good weather and holiday implies tickets will be sold out and you have to drive
-      E.add_constraint((sunny[location] & holiday).negate() | (transit[location] | plane[location]).negate())
+      e.add_constraint(~(sunny[location] & holiday) | ~(transit[location] | plane[location]))
 
       #rainy or snowstorm increases the likelihood of accidents
-      E.add_constraint((rainy[location] | snowstorm[location]).negate() | accident[location])
+      e.add_constraint((rainy[location] | snowstorm[location]).negate() | accident[location])
       #snowstorm implies that transit and planes will be shut down
-      E.add_constraint(~snowstorm[location] | (transit[location] | plane[location]).negate())
+      e.add_constraint(~snowstorm[location] | (transit[location] | plane[location]).negate())
       #driving constraints (come into play if they are driving):
       #bad weather and roadwork implies unfeasible trip
-      E.add_constraint((((rainy[location] | snowstorm[location]) & roadwork[location]) & drive[location]).negate())
+      e.add_constraint((((rainy[location] | snowstorm[location]) & roadwork[location]) & drive[location]).negate())
       #bad weather and holiday implies unfeasible trip
-      E.add_constraint((((rainy[location] | snowstorm[location]) & holiday) & drive[location]).negate())
+      e.add_constraint((((rainy[location] | snowstorm[location]) & holiday) & drive[location]).negate())
       #roadwork and holiday implies unfeasible trip
-      E.add_constraint(((roadwork[location] & holiday) & drive[location]).negate())
+      e.add_constraint(((roadwork[location] & holiday) & drive[location]).negate())
       #roadwork and accident implies unfeasible trip
-      E.add_constraint(((roadwork[location] & accident[location]) & drive[location]).negate())
+      e.add_constraint(((roadwork[location] & accident[location]) & drive[location]).negate())
       #holiday and accident implies unfeasible trip
-      E.add_constraint(((holiday & accident[location]) & drive[location]).negate())
+      e.add_constraint(((holiday & accident[location]) & drive[location]).negate())
       #you must have at least one form of travel
-      E.add_constraint(plane[location] | transit[location] | drive[location])
+      e.add_constraint(plane[location] | transit[location] | drive[location])
       #only one form of travel can be true at once
-      E.add_constraint(~drive[location] | (~transit[location] & ~plane[location]))
-      E.add_constraint(~transit[location] | (~drive[location] & ~plane[location]))
-      E.add_constraint(~plane[location] | (~transit[location] & ~drive[location]))
+      e.add_constraint(~drive[location] | (~transit[location] & ~plane[location]))
+      e.add_constraint(~transit[location] | (~drive[location] & ~plane[location]))
+      e.add_constraint(~plane[location] | (~transit[location] & ~drive[location]))
 
       #you cannot drive anywhere if you have more than 5 people
-      E.add_constraint(~more_than_five | ~drive[location])
+      e.add_constraint(~more_than_five | ~drive[location])
 
       #you cannot take a plane if you don't have money for a ticket
-      E.add_constraint(afford_plane | ~plane[location])
+      e.add_constraint(afford_plane | ~plane[location])
       
       #if you are taking an urgent trip, only the fastest trip (determined earlier) is possible
       if "drive" in entry["urgent"].keys():
-        E.add_constraint(~urgent_trip  | (~transit[location] & ~plane[location]))
+        e.add_constraint(~urgent_trip  | (~transit[location] & ~plane[location]))
       elif "transit" in entry["urgent"].keys():
-        E.add_constraint(~urgent_trip  | (~drive[location] & ~plane[location]))
+        e.add_constraint(~urgent_trip  | (~drive[location] & ~plane[location]))
       elif "plane" in entry["urgent"].keys():
-        E.add_constraint(~urgent_trip  | (~transit[location] & ~drive[location]))
+        e.add_constraint(~urgent_trip  | (~transit[location] & ~drive[location]))
       
       #if you have the virus, you ain't flying nowhere
-      E.add_constraint(~plane[location] | (~virus & documents))
+      e.add_constraint(~plane[location] | (~virus & documents))
       #if you don't have documents, you ain't flying nowhere
-      E.add_constraint(documents | ~plane[location])
+      e.add_constraint(documents | ~plane[location])
 
     #only relevant if travel is international
     #if you have tested positive for the virus/been in contact, you can't cross the border
-    E.add_constraint(~international | (~virus & documents))
+    e.add_constraint(~international | (~virus & documents))
     #no documents means you can't cross the border
-    E.add_constraint((international & documents) | ~international)
+    e.add_constraint((international & documents) | ~international)
 
-    return E    
+
+    #get NNF object
+    e = e.compile()
+
+    return e    
 
 def test_weather(stop_info):
     """Tests weather constraints by adding more weather constraints to the list of extra test constraints

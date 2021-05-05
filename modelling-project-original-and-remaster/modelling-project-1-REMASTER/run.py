@@ -48,8 +48,6 @@ holiday = universal_prop('holiday') # holiday
 more_than_five = universal_prop('more than five people') # travelling with more than 5 people
 urgent_trip = universal_prop('trip is urgent') # trip is urgent
 
-#STEP 2: SET UP COMPLEX PROPOSITIONS
-
 #for each factor variables, we're storing them in dictionaries because when asking the users for their inputs,
 #there might be multiple stops along the trip, therefore we would need propositions for each stop along the way.
 sunny = {}
