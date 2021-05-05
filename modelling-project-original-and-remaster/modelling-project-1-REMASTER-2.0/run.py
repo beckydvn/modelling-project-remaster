@@ -452,7 +452,9 @@ def test_travel():
 def solve(border, is_urgent, test, extra_con=[]):
     """Sets up and uses the SAT solver."""
     #set up the solver
+
     T = example_theory()
+    print(type(T))
 
     #account for international status/urgency
     if(border):
@@ -461,6 +463,13 @@ def solve(border, is_urgent, test, extra_con=[]):
     else:
       T.add_constraint(~international)
       print("This trip is not international...")
+
+    print(type(T))
+
+    print(dir(T))
+    T.compile()
+    print("Oy.")
+    print("   Solution: %s" % T.solve())
 
     #add more constraints if the trip is urgent
     if(is_urgent):
