@@ -16,28 +16,28 @@ e = Encoding()
 class universal_prop:
   #instantiate with name to be given to the proposition
   def __init__(self, name):
-    self.name = name
+    self = name
 
 #class for weather propositions
 @proposition(e)
 class weather_prop:
   #instantiate with name to be given to the proposition
   def __init__(self, name):
-    self.name = name
+    self = name
 
 #class for travel propositions
 @proposition(e)
 class transit_prop:
   #instantiate with name to be given to the proposition
   def __init__(self, name):
-    self.name = name
+    self = name
 
 #class for delay propositions
 @proposition(e)
 class delay_prop:
   #instantiate with name to be given to the proposition
   def __init__(self, name):
-    self.name = name
+    self = name
 
 #factors that might affect the trips
 virus = universal_prop('virus') # 🦠 
@@ -103,48 +103,63 @@ def get_international(start_country, end_country):
     """checking if the trip is international or not (from Canada to USA and vice versa)"""
     return start_country != end_country
 
-def get_urgency():
+def get_input(prompt, yes_msg, no_msg):
     """ask if the trip is urgent or not"""
-    choice = input("Is the trip urgent? (Y \ N)")
+    choice = input(prompt)
     choice = choice.upper()
     while(choice != "Y" and choice != "N"):
       choice = input("Please enter a valid option.")
       choice = choice.upper()
     if(choice.upper() == "Y"):
-      is_urgent = True
+      print(yes_msg + "\n")
+      selected = True
     else:
-      is_urgent = False
-    return is_urgent
+      print(no_msg+ "\n")
+      selected = False
+    return selected
 
-def is_test():
-    """ask if the current run is a test or not"""
-    choice = input("Do you want to run this in test mode where you can add extra constraints? (Y \ N)")
-    choice = choice.upper()
-    while(choice != "Y" and choice != "N"):
-      choice = input("Please enter a valid option.")
-      choice = choice.upper()
-    if(choice.upper() == "Y"):
-      print("Running in test mode...\n")
-      test = True
-    else:
-      print("Running normally...\n")
-      test = False
-    return test
+# def get_urgency():
+#     """ask if the trip is urgent or not"""
+#     choice = input("Is the trip urgent? (Y \ N)")
+#     choice = choice.upper()
+#     while(choice != "Y" and choice != "N"):
+#       choice = input("Please enter a valid option.")
+#       choice = choice.upper()
+#     if(choice.upper() == "Y"):
+#       is_urgent = True
+#     else:
+#       is_urgent = False
+#     return is_urgent
 
-def is_debug():
-    """ask if the current run is a debug run"""
-    choice = input("Do you want to run this in debugging mode with the default start and end point Toronto and Seattle and no urgency assumed? (Y \ N)")
-    choice = choice.upper()
-    while(choice != "Y" and choice != "N"):
-      choice = input("Please enter a valid option.")
-      choice = choice.upper()
-    if(choice.upper() == "Y"):
-      print("Running in debug mode...\n")
-      debug = True
-    else:
-      print("Running normally...\n")
-      debug = False
-    return debug
+# def is_test():
+#     """ask if the current run is a test or not"""
+#     choice = input("Do you want to run this in test mode where you can add extra constraints? (Y \ N)")
+#     choice = choice.upper()
+#     while(choice != "Y" and choice != "N"):
+#       choice = input("Please enter a valid option.")
+#       choice = choice.upper()
+#     if(choice.upper() == "Y"):
+#       print("Running in test mode...\n")
+#       test = True
+#     else:
+#       print("Running normally...\n")
+#       test = False
+#     return test
+
+# def is_debug():
+#     """ask if the current run is a debug run"""
+#     choice = input("Do you want to run this in debugging mode with the default start and end point Toronto and Seattle and no urgency assumed? (Y \ N)")
+#     choice = choice.upper()
+#     while(choice != "Y" and choice != "N"):
+#       choice = input("Please enter a valid option.")
+#       choice = choice.upper()
+#     if(choice.upper() == "Y"):
+#       print("Running in debug mode...\n")
+#       debug = True
+#     else:
+#       print("Running normally...\n")
+#       debug = False
+#     return debug
 
 def decide_test():
     """Get any extra constraints from the user if they are running a test."""
@@ -304,6 +319,7 @@ def set_up_props():
       snowstorm[location] = weather_prop('snowstorm from ' + location)
 
 def example_theory():
+
     global e 
 
     set_up_props()
@@ -311,94 +327,84 @@ def example_theory():
     for entry in stop_info:
       location = entry["location"]
       #exactly one weather condition must be true for each location
-      constraint.add_exactly_one(e, sunny[location].name, rainy[location].name, snowstorm[location].name)
+      constraint.add_exactly_one(e, sunny[location], rainy[location], snowstorm[location])
 
       #at most one of driving, transit, and plane propositions can be true for each location
-      constraint.add_exactly_one(e, drive[location].name, transit[location].name, plane[location].name)
+      constraint.add_exactly_one(e, drive[location], transit[location], plane[location])
 
     #loop through each stop and set appropriate constraints
-    #note: we don't necessarily set it that proposition to true unless we know 100%
+    #note: we don't necessarily set each proposition to true unless we know 100%
     #it is true because it could still be set false by other constraints.
     #(just because something is false in one scenario, doesn't mean it's true in the 
     # opposite).
     for entry in stop_info:
+      #get current location
       location = entry["location"]
+
       #if a given mode of transportation is not feasible for that trip, set the
       #constraint that it can't be true
       if "drive" not in entry["travel"].keys():
-        e.add_constraint(~drive[location])
+        e.add_constraint(~(drive[location]))
+
       #if it would take more than 3 hours to drive to/from this trip/the trip is international, tolls 
       #will be there
       else:
         if(entry["travel"]["drive"] > 3):
-          e.add_constraint(toll[location])
+          e.add_constraint((toll[location]))
           #cannot cross a toll if you have no toll money
-          e.add_constraint(~((toll[location] & ~toll_money) & drive[location]))
+          e.add_constraint(~((toll[location]) & ~(toll_money) & (drive[location])))
+      #can only use the valid modes of travel
       if "transit" not in entry["travel"].keys():
-        e.add_constraint(~transit[location])
+        e.add_constraint(~(transit[location]))
       if "plane" not in entry["travel"].keys():
-        e.add_constraint(~plane[location])
-      e.add_constraint(~international | toll[location])
-      #at least one weather mode has to be true
-      e.add_constraint(sunny[location] | rainy[location] | snowstorm[location])
-
-      #only one form of weather can be true at once
-      e.add_constraint(~sunny[location] | (~snowstorm[location] & ~rainy[location]))
-      e.add_constraint(~rainy[location] | (~snowstorm[location] & ~sunny[location]))
-      e.add_constraint(~snowstorm[location] | (~sunny[location] & ~rainy[location]))
+        e.add_constraint(~(plane[location]))
+      e.add_constraint(~(international) | (toll[location]))
 
       #good weather and holiday implies tickets will be sold out and you have to drive
-      e.add_constraint(~(sunny[location] & holiday) | ~(transit[location] | plane[location]))
-      
+      e.add_constraint(~((sunny[location]) & (holiday)) | ~((transit[location]) | (plane[location])))
 
       #rainy or snowstorm increases the likelihood of accidents
-      e.add_constraint(~(rainy[location] | snowstorm[location]) | accident[location])
+      e.add_constraint(~((rainy[location]) | (snowstorm[location])) | (accident[location]))
       #snowstorm implies that transit and planes will be shut down
-      e.add_constraint(~snowstorm[location] | ~(transit[location] | plane[location]))
+      e.add_constraint(~(snowstorm[location]) | ~((transit[location]) | (plane[location])))
       #driving constraints (come into play if they are driving):
       #bad weather and roadwork implies unfeasible trip
-      e.add_constraint(~(((rainy[location] | snowstorm[location]) & roadwork[location]) & drive[location]))
+      e.add_constraint(~((((rainy[location]) | (snowstorm[location])) & (roadwork[location])) & (drive[location])))
       #bad weather and holiday implies unfeasible trip
-      e.add_constraint(~(((rainy[location] | snowstorm[location]) & holiday) & drive[location]))
+      e.add_constraint(~(((rainy[location]) | (snowstorm[location])) & (holiday) & (drive[location])))
       #roadwork and holiday implies unfeasible trip
-      e.add_constraint(~((roadwork[location] & holiday) & drive[location]))
+      e.add_constraint(~(((roadwork[location]) & (holiday)) & (drive[location])))
       #roadwork and accident implies unfeasible trip
-      e.add_constraint(~((roadwork[location] & accident[location]) & drive[location]))
+      e.add_constraint(~(((roadwork[location]) & (accident[location])) & (drive[location])))
       #holiday and accident implies unfeasible trip
-      e.add_constraint(~((holiday & accident[location]) & drive[location]))
-      #you must have at least one form of travel
-      e.add_constraint(plane[location] | transit[location] | drive[location])
-      #only one form of travel can be true at once
-      e.add_constraint(~drive[location] | (~transit[location] & ~plane[location]))
-      e.add_constraint(~transit[location] | (~drive[location] & ~plane[location]))
-      e.add_constraint(~plane[location] | (~transit[location] & ~drive[location]))
+      e.add_constraint(~(((holiday) & (accident[location])) & (drive[location])))
 
       #you cannot drive anywhere if you have more than 5 people
-      e.add_constraint(~more_than_five | ~drive[location])
+      e.add_constraint(~(more_than_five) | ~(drive[location]))
 
       #you cannot take a plane if you don't have money for a ticket
-      e.add_constraint(afford_plane | ~plane[location])
+      e.add_constraint((afford_plane) | ~(plane[location]))
       
       #if you are taking an urgent trip, only the fastest trip (determined earlier) is possible
       if "drive" in entry["urgent"].keys():
-        e.add_constraint(~urgent_trip  | (~transit[location] & ~plane[location]))
+        e.add_constraint(~(urgent_trip) | (~(transit[location]) & ~(plane[location])))
       elif "transit" in entry["urgent"].keys():
-        e.add_constraint(~urgent_trip  | (~drive[location] & ~plane[location]))
+        e.add_constraint(~(urgent_trip) | (~(drive[location]) & ~(plane[location])))
       elif "plane" in entry["urgent"].keys():
-        e.add_constraint(~urgent_trip  | (~transit[location] & ~drive[location]))
+        e.add_constraint(~(urgent_trip) | (~(transit[location]) & ~(drive[location])))
       
-      #if you have the virus, you ain't flying nowhere
-      e.add_constraint(~plane[location] | (~virus & documents))
-      #if you don't have documents, you ain't flying nowhere
-      e.add_constraint(documents | ~plane[location])
+      #if you have the virus, you can't take a plane
+      e.add_constraint(~(plane[location]) | (~(virus) & (documents)))
+      #if you don't have documents, you can't take a plane
+      e.add_constraint((documents) | ~(plane[location]))
 
     #only relevant if travel is international
     #if you have tested positive for the virus/been in contact, you can't cross the border
-    e.add_constraint(~international | (~virus & documents))
+    e.add_constraint(~(international) | (~(virus) & (documents)))
     #no documents means you can't cross the border
-    e.add_constraint((international & documents) | ~international)
+    e.add_constraint(((international) & (documents)) | ~(international))
 
-    return e    
+    return e      
 
 def test_weather(stop_info):
     """Tests weather constraints by adding more weather constraints to the list of extra test constraints
@@ -408,12 +414,13 @@ def test_weather(stop_info):
     for entry in stop_info:
       location = entry["location"]
       #ensure that it is not a snowstorm so transit could always happen
-      extra_con.append(~snowstorm[location])
+      extra_con.append(~(snowstorm[location]))
       #ensure that a holiday and taking the train means that it is NOT sunny
-      extra_con.append(transit[location] & holiday)
+      extra_con.append((transit[location]))
+      extra_con.append((holiday))
       #the above two implies it will be rainy, which will imply accidents
       #should fail the model due to a contradiction
-      extra_con.append(~accident[location])
+      extra_con.append(~(accident[location]))
     return extra_con
 
 def test_affordability():
@@ -423,13 +430,13 @@ def test_affordability():
     for entry in stop_info:
       location = entry["location"]
       #force international to be true so there will be toll money
-      extra_con.append(international)
+      extra_con.append((international))
       #force plane to be false
-      extra_con.append(~afford_plane)
+      extra_con.append(~(afford_plane))
       #forced the driver to have no toll money
-      extra_con.append(~toll_money)
+      extra_con.append(~(toll_money))
       #(either transit will always be true or the model will fail). The below will fail the model.
-      extra_con.append(~transit[location])
+      extra_con.append(~(transit[location]))
     return extra_con
 
 def test_travel():
@@ -439,14 +446,14 @@ def test_travel():
     for entry in stop_info:
       location = entry["location"]
       #force more than five people to take the trip (negates driving)
-      extra_con.append(more_than_five)
+      extra_con.append((more_than_five))
 
       #force one of them to have COVID (cannot take a plane/travel internationally)
       #if the user enters an international trip there should be 0 solutions.
       #in other words, their only option in this scenario is to take transit domestically.
       #negating transit gives us 0 solutions then, of course.
-      extra_con.append(virus)
-      extra_con.append(~transit[location])
+      extra_con.append((virus))
+      extra_con.append(~(transit[location]))
     return extra_con  
 
 def solve(border, is_urgent, test, extra_con=[]):
@@ -454,52 +461,45 @@ def solve(border, is_urgent, test, extra_con=[]):
     #set up the solver
 
     T = example_theory()
-    print(type(T))
 
     #account for international status/urgency
     if(border):
-      T.add_constraint(international)
+      T.add_constraint((international))
       print("This trip is international...")
     else:
-      T.add_constraint(~international)
+      T.add_constraint(~(international))
       print("This trip is not international...")
-
-    print(type(T))
-
-    print(dir(T))
-    T.compile()
-    print("Oy.")
-    print("   Solution: %s" % T.solve())
 
     #add more constraints if the trip is urgent
     if(is_urgent):
-      T.add_constraint(urgent_trip)
+      T.add_constraint((urgent_trip))
     else:
-      T.add_constraint(~urgent_trip)
+      T.add_constraint(~(urgent_trip))
 
     if test:
       #add any extra constraints
       if extra_con != []:
         for constraint in extra_con:
-          T.add_constraint(constraint)
+          T.add_constraint(~constraint)
 
     #get NNF object
     T = T.compile()
 
-    print("\nSatisfiable: %s" % T.is_satisfiable())
-    print("# Solutions: %d" % T.count_solutions())
     print("   Solution: %s" % T.solve())
+    print("   Number of Solutions: %s" % T.model_count())
 
 def main():
     """Runs the program."""
 
     #ask the user if they are running in debug mode
-    debug = is_debug()
+    #debug = is_debug()
+    debug = get_input("Do you want to run this in debugging mode with the default start and end point Toronto and Seattle and no urgency assumed? (Y \ N)", "Running in debug mode...", "Running normally...")
 
     #normal mode - get locations from user
     if not debug:
       #ask the user if a test is being run
-      test = is_test()
+      #test = is_test()
+      test = get_input("Do you want to run this in test mode where you can add extra constraints? (Y \ N)", "Running in test mode...", "Running normally...")
       #if it is a test, get any extra constraints from the user
       if test:
         type_of_test = decide_test()
@@ -527,7 +527,8 @@ def main():
       start_country = raw_location["starting country"]
       end_country = raw_location["ending country"]
 
-      is_urgent = get_urgency()
+      #is_urgent = get_urgency()
+      is_urgent = get_input("Is the trip urgent? (Y \ N)", "", "")
 
       #calculate the total distance between the starting and ending city
       start_coord = (start_city["latitude"], start_city["longitude"])
@@ -589,7 +590,7 @@ def main():
 
       user_input = -2 #initizalize
       #get the user input for the stops they would like and store it in chosen_stops
-      print("Please enter which stops you would like to take along the way." + 
+      print("Please enter which stops you would like to take along the way. " + 
       "If you are done entering stops, please enter '-1'. If you don't want to take any stops," +
       " enter -1 right away.")
       while(user_input != -1):
