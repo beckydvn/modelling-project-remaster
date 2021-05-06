@@ -2,7 +2,7 @@
 
 # CISC/CMPE 204 Modelling Project - Group 1
 
-In terms of structure, our project is pretty straightforward - the only file that code is written in is run.py. We also imported databases for the canadian and american cities. Note: you must be connected to the Internet in order for goepy to work. You also need to use Docker.
+In terms of structure, our project is pretty straightforward - the only file that code is written in is run.py. We also imported databases for the Canadian and American cities. Note: you must be connected to the Internet in order for goepy to work.
 
 To summarize, our project allows the user to pick 2 cities in Canada or the United States to travel between, as well as any from 0-10 stops along the way. A model corresponds to the combination of feasible trips from the start to the destination. The user can also specify if they want to take an urgent trip. Follow the user input and enjoy!
 
